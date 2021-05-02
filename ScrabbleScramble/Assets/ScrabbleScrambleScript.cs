@@ -36,10 +36,10 @@ public class ScrabbleScrambleScript : MonoBehaviour {
     int activations = 0;
     float timeElapsed = 0f;
     private Coroutine timerTick;
-    bool coroutineActive = false;
-    bool waiting = false;
     bool goingIntoSolve = false;
-    bool satisfied = false;
+
+    States state = States.Initial;
+
     List<string> words = new List<string> { "AA", "AB", "AD", "AE", "AG", "AH", "AI", "AL", "AM", "AN", "AR", "AS", "AT", "AW", "AX", "AY", "BA", "BE", "BI", "BO", "BY", "DA", "DE", "DO", "ED", "EF", "EH", "EL", "EM", "EN", "ER", "ES", "ET", "EW", "EX", "FA", "FE", "GI", "GO", "HA", "HE", "HI", "HM", "HO", "ID", "IF", "IN", "IS", "IT", "JO", "KA", "KI", "LA", "LI", "LO", "MA", "ME", "MI", "MM", "MO", "MU", "MY", "NA", "NE", "NO", "NU", "OD", "OE", "OF", "OH", "OI", "OK", "OM", "ON", "OP", "OR", "OS", "OW", "OX", "OY", "PA", "PE", "PI", "PO", "QI", "RE", "SH", "SI", "SO", "TA", "TE", "TI", "TO", "UH", "UM", "UN", "UP", "US", "UT", "WE", "WO", "XI", "XU", "YA", "YE", "YO", "ZA", "CH", "DI", "EA", "EE", "FY", "GU", "IO", "JA", "KO", "KY", "NY", "OB", "OO", "OU", "ST", "UG", "UR", "YU", "ZE", "ZO" };
     int[] letterValues = new int[] { 1, 3, 3, 2, 1, 4, 2, 4, 1, 8, 5, 1, 3, 1, 1, 3, 10, 1, 1, 1, 1, 4, 4, 8, 4, 10 };
     int currentScore = 0;
@@ -49,50 +49,49 @@ public class ScrabbleScrambleScript : MonoBehaviour {
     char[] availableTiles = new char[6];
     char[] alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".ToCharArray();
 
+
     void Awake ()
     {
         moduleId = moduleIdCounter++;
         for (int i = 0; i < 6; i++)
         {
-            int fuckyou = i;
-            tileSelectables[fuckyou].OnInteract += delegate () { TilePress(fuckyou); return false; };
-            tilePositions[fuckyou] = tileSelectables[fuckyou].transform.localPosition;
-            tiles[fuckyou].SetActive(false);
+            int j = i;
+            tileSelectables[j].OnInteract += delegate () { TilePress(j); return false; };
+            tilePositions[j] = tileSelectables[j].transform.localPosition;
+            tiles[j].SetActive(false);
         }
         submitButton.OnInteract += delegate () { Submit(); return false; };
-        if (ignoredModules == null)
-            ignoredModules = BossModule.GetIgnoredModules("Scrabble Scramble", new string[] { "14", "42", "501", "A>N<D", "Bamboozling Time Keeper", "Black Arrows", "Brainf---", "Busy Beaver", "Don't Touch Anything", "Floor Lights", "Forget Any Color", "Forget Enigma", "Forget Everything", "Forget Infinity", "Forget It Not", "Forget Maze Not", "Forget Me Later", "Forget Me Not", "Forget Perspective", "Forget The Colors", "Forget Them All", "Forget This", "Forget Us Not", "Iconic", "Keypad Directionality", "Kugelblitz", "Multitask", "OmegaDestroyer", "OmegaForest", "Organization", "Password Destroyer", "Purgatory", "RPS Judging", "Security Council", "Shoddy Chess", "Simon Forgets", "Simon's Stages", "Souvenir", "Tallordered Keys", "The Time Keeper", "Timing is Everything", "The Troll", "Turn The Key", "The Twin", "Übermodule", "Ultimate Custom Night", "The Very Annoying Button", "Whiteout" } );
-        GetComponent<KMBombModule>().OnActivate += delegate () { lightsOn = true; };
+        ignoredModules = ignoredModules ?? BossModule.GetIgnoredModules("Scrabble Scramble", new string[] { "14", "42", "501", "A>N<D", "Bamboozling Time Keeper", "Black Arrows", "Brainf---", "Busy Beaver", "Don't Touch Anything", "Floor Lights", "Forget Any Color", "Forget Enigma", "Forget Everything", "Forget Infinity", "Forget It Not", "Forget Maze Not", "Forget Me Later", "Forget Me Not", "Forget Perspective", "Forget The Colors", "Forget Them All", "Forget This", "Forget Us Not", "Iconic", "Keypad Directionality", "Kugelblitz", "Multitask", "OmegaDestroyer", "OmegaForest", "Organization", "Password Destroyer", "Purgatory", "RPS Judging", "Security Council", "Shoddy Chess", "Simon Forgets", "Simon's Stages", "Souvenir", "Tallordered Keys", "The Time Keeper", "Timing is Everything", "The Troll", "Turn The Key", "The Twin", "Übermodule", "Ultimate Custom Night", "The Very Annoying Button", "Whiteout" });
+        GetComponent<KMBombModule>().OnActivate += delegate () { lightsOn = true; timerTick = StartCoroutine(Timer()); };
     }
 
     void Start ()
     {
         startingTime = Bomb.GetTime();
         modCount = Bomb.GetSolvableModuleNames().Count(x => !ignoredModules.Contains(x));
-        StartCoroutine(InitialActivation());
+        
     }
 
     void Update ()
     {
         if (Bomb.GetTime() < startingTime * threshold || Bomb.GetSolvedModuleNames().Count() > modCount * threshold)
             goingIntoSolve = true;
-        if (lightsOn && coroutineActive)
+        if (lightsOn && state < States.Submission)
             timeElapsed += 10*Time.deltaTime;
-    }
-
-    IEnumerator InitialActivation()
-    {
-        coroutineActive = true;
-        while (timeElapsed < 60)
-            yield return null;
-        timeElapsed = 0f;
-        timerTick = StartCoroutine(Timer());
-        StartCoroutine(GenerateStage());
     }
 
     void TilePress(int pos)
     {
-        Debug.Log(pos);
+        if (isAnimating)
+            return;
+        if (state == States.Activated)
+            PlaceTile(pos);
+        else if (state == States.Submission)
+            HandleNumberInput(pos);
+    }
+
+    void PlaceTile(int pos)
+    {
         if (selectedTiles.Contains(pos))
         {
             tiles[pos].transform.SetParent(tilesParent.transform);
@@ -113,21 +112,26 @@ public class ScrabbleScrambleScript : MonoBehaviour {
             selectedTiles[boxPosition] = pos;
             input[boxPosition] = availableTiles[pos];
         }
-        
     }
+
+    void HandleNumberInput(int pos)
+    {
+
+    }
+
     void Submit()
     {
         submitButton.AddInteractionPunch(1);
         Audio.PlayGameSoundAtTransform(KMSoundOverride.SoundEffect.ButtonPress, submitButton.transform);
-        if (isAnimating || moduleSolved || satisfied || activations == 0)
+        if (isAnimating || moduleSolved || activations == 0)
             return;
         CheckAnswer();
     }
 
     void CheckAnswer()
     {
+        state = States.Deactivated;
         string inputted = string.Empty + input[0] + input[1]; //Just adding two chars results in an int.
-        satisfied = true;
         if (words.Contains(inputted))
         {
             Debug.LogFormat("[Scrabble Scramble #{0}] Entered the word {1} which is in the word list. Added {2} points to the score.", moduleId, inputted, GetScrabbleScore(inputted));
@@ -143,25 +147,32 @@ public class ScrabbleScrambleScript : MonoBehaviour {
 
     IEnumerator Timer()
     {
-        coroutineActive = true;
-        while (!moduleSolved)
+        while (state != States.Submission && state != States.Solved)
         {
-            if (!satisfied)
-                timerText.text = Mathf.FloorToInt(90 - timeElapsed).ToString().PadLeft(2, '0');
-            else timerText.text = string.Empty;
-            if (timeElapsed >= 90)
+            int timerNumber;
+            switch (state)
             {
-                Debug.LogFormat("[Scrabble Scramble #{0}] Ran out of time, strike!", moduleId);
-                GetComponent<KMBombModule>().HandleStrike();
-                timeElapsed = 0;
-                satisfied = false;
-                timerText.text = string.Empty;
-                while (timeElapsed <= 30) //Adds a 30 second free period after deactivation. This should give a total of one stage done every 2 minutes.
-                    yield return null;
-                timeElapsed = 0;
-                StartCoroutine(GenerateStage());
+                case States.Deactivated: timerNumber = 30; break;
+                case States.Initial: timerNumber = 60; break;
+                case States.Activated: timerNumber = 90; break;
+                default: throw new ArgumentException();
             }
+            if (timeElapsed > timerNumber)
+            {
+                timeElapsed = Time.deltaTime;
+                if (state == States.Activated)
+                    CheckAnswer();
+                else
+                {
+                    StartCoroutine(GenerateStage());
+                    state = States.Activated;
+                }
+            }
+            if (state == States.Activated)
+                timerText.text = (timerNumber - Mathf.FloorToInt(timeElapsed)).ToString().PadLeft(2, '0');
+            else timerText.text = string.Empty;
             yield return null;
+
         }
     }
 
@@ -208,6 +219,7 @@ public class ScrabbleScrambleScript : MonoBehaviour {
                 tiles[i].SetActive(true);
                 yield return new WaitForSeconds(0.5f);
             }
+            isAnimating = false;
         }
         yield return null;
     }
@@ -216,7 +228,7 @@ public class ScrabbleScrambleScript : MonoBehaviour {
     {
         int score = 0;
         foreach (char letter in input)
-            score += letterValues[Array.IndexOf(alphabet, letter)];
+            score += letterValues[letter - 'A'];
         return score;
     }
 
