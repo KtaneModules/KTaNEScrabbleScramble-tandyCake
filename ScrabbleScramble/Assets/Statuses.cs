@@ -5,4 +5,5 @@
     Deactivated,
     Submission,
     Solved,
+    Recalling
 }
