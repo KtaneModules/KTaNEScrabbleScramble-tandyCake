@@ -32,12 +32,12 @@ public class ScrabbleScrambleScript : MonoBehaviour
     float startingTime;
     int modCount;
     public static string[] ignoredModules = null;
-    float threshold = 0.50f;
+    float threshold = 0.5f;
 
-    int activations = 0;
-    float timeElapsed = 0f;
+    int activations;
+    float timeElapsed;
     private Coroutine timerTick;
-    bool goingIntoSolve = false;
+    bool goingIntoSolve;
 
     States state = States.Initial;
     bool satisfied = true;
@@ -45,27 +45,27 @@ public class ScrabbleScrambleScript : MonoBehaviour
 
     List<string> words = new List<string> { "AA", "AB", "AD", "AE", "AG", "AH", "AI", "AL", "AM", "AN", "AR", "AS", "AT", "AW", "AX", "AY", "BA", "BE", "BI", "BO", "BY", "DA", "DE", "DO", "ED", "EF", "EH", "EL", "EM", "EN", "ER", "ES", "ET", "EW", "EX", "FA", "FE", "GI", "GO", "HA", "HE", "HI", "HM", "HO", "ID", "IF", "IN", "IS", "IT", "JO", "KA", "KI", "LA", "LI", "LO", "MA", "ME", "MI", "MM", "MO", "MU", "MY", "NA", "NE", "NO", "NU", "OD", "OE", "OF", "OH", "OI", "OK", "OM", "ON", "OP", "OR", "OS", "OW", "OX", "OY", "PA", "PE", "PI", "PO", "QI", "RE", "SH", "SI", "SO", "TA", "TE", "TI", "TO", "UH", "UM", "UN", "UP", "US", "UT", "WE", "WO", "XI", "XU", "YA", "YE", "YO", "ZA", "CH", "DI", "EA", "EE", "FY", "GU", "IO", "JA", "KO", "KY", "NY", "OB", "OO", "OU", "ST", "UG", "UR", "YU", "ZE", "ZO" };
     int[] letterValues = new int[] { 1, 3, 3, 2, 1, 4, 2, 4, 1, 8, 5, 1, 3, 1, 1, 3, 10, 1, 1, 1, 1, 4, 4, 8, 4, 10 };
-    int currentScore = 0;
+    int currentScore;
     List<string> submittedWords = new List<string>();
 
     char[] input = new char[] { '-', '-' };
     int[] selectedTiles = new int[] { -1, -1 };
     char[] availableTiles = new char[6];
 
-    bool showingBigs = false;
-    int submission = 0;
+    bool showingBigs;
+    int submission;
+    bool evenNumberedInput;
 
-    char[][] numberSets = new char[][] { "01234↓".ToCharArray(), "56789↑".ToCharArray() };
+    string[] numberSets = new string[] { "01234↓", "56789↑" };
 
     void Awake()
     {
         moduleId = moduleIdCounter++;
         for (int i = 0; i < 6; i++)
         {
-            int x = i;
-            tileSelectables[x].OnInteract += delegate () { TilePress(x); return false; };
-            tilePositions[x] = tileSelectables[x].transform.localPosition;
-            tiles[x].SetActive(false);
+            int ix = i;
+            tileSelectables[ix].OnInteract += delegate () { TilePress(ix); return false; };
+            tilePositions[ix] = tileSelectables[ix].transform.localPosition;
         }
         submitButton.OnInteract += delegate () { Submit(); return false; };
         ignoredModules = ignoredModules ?? BossModule.GetIgnoredModules("Scrabble Scramble", new string[] { "14", "42", "501", "A>N<D", "Bamboozling Time Keeper", "Black Arrows", "Brainf---", "Busy Beaver", "Don't Touch Anything", "Floor Lights", "Forget Any Color", "Forget Enigma", "Forget Everything", "Forget Infinity", "Forget It Not", "Forget Maze Not", "Forget Me Later", "Forget Me Not", "Forget Perspective", "Forget The Colors", "Forget Them All", "Forget This", "Forget Us Not", "Iconic", "Keypad Directionality", "Kugelblitz", "Multitask", "OmegaDestroyer", "OmegaForest", "Organization", "Password Destroyer", "Purgatory", "RPS Judging", "Security Council", "Shoddy Chess", "Simon Forgets", "Simon's Stages", "Souvenir", "Tallordered Keys", "The Time Keeper", "Timing is Everything", "The Troll", "Turn The Key", "The Twin", "Übermodule", "Ultimate Custom Night", "The Very Annoying Button", "Whiteout" });
@@ -76,12 +76,22 @@ public class ScrabbleScrambleScript : MonoBehaviour
     {
         startingTime = Bomb.GetTime();
         modCount = Bomb.GetSolvableModuleNames().Count(x => !ignoredModules.Contains(x));
+        for (int i = 0; i < 6; i++)
+            tiles[i].SetActive(false);
+        StartCoroutine(CheckBomb());
+    }
+    IEnumerator CheckBomb()
+    {
+        while (!goingIntoSolve)
+        {
+            yield return new WaitForSeconds(1);
+            if (Bomb.GetTime() <= startingTime * (1 - threshold) || Bomb.GetSolvedModuleNames().Count() >= modCount * threshold)
+                goingIntoSolve = true;
+        }
     }
 
     void Update()
     {
-        if (Bomb.GetTime() <= startingTime * (1 - threshold) || Bomb.GetSolvedModuleNames().Count() >= modCount * threshold)
-            goingIntoSolve = true;
         if (lightsOn && state < States.Submission)
             timeElapsed += Time.deltaTime;
     }
@@ -121,18 +131,19 @@ public class ScrabbleScrambleScript : MonoBehaviour
 
     void HandleNumberInput(int pos)
     {
-        if (state != States.Submission)
-            throw new NotImplementedException();
         if (pos == 5)
         {
             for (int i = 0; i < 6; i++)
-                tiles[i].GetComponentInChildren<TextMesh>().text = "" + numberSets[showingBigs ? 0 : 1][i];
+                tiles[i].GetComponentInChildren<TextMesh>().text = numberSets[showingBigs ? 0 : 1][i].ToString();
             showingBigs = !showingBigs;
         }
         else
         {
-            submission = submission * 10 + pos;
-            if (showingBigs) submission += 5;
+            submission *= 10;
+            submission += pos;
+            if (showingBigs)
+                submission += 5;
+            submission %= 10000;
             timerText.text = (submission % 100).ToString().PadLeft(2, '0');
         }
     }
@@ -144,6 +155,8 @@ public class ScrabbleScrambleScript : MonoBehaviour
             state = States.Solved;
             moduleSolved = true;
             GetComponent<KMBombModule>().HandlePass();
+            Audio.PlayGameSoundAtTransform(KMSoundOverride.SoundEffect.CorrectChime, transform);
+            StartCoroutine(Clear());
             timerText.text = "!!";
         }
         else
@@ -160,7 +173,7 @@ public class ScrabbleScrambleScript : MonoBehaviour
     {
         submitButton.AddInteractionPunch(1);
         Audio.PlayGameSoundAtTransform(KMSoundOverride.SoundEffect.ButtonPress, submitButton.transform);
-        if (isAnimating || moduleSolved || activations == 0)
+        if (isAnimating || moduleSolved || state == States.Initial)
             return;
         CheckAnswer();
     }
@@ -173,7 +186,7 @@ public class ScrabbleScrambleScript : MonoBehaviour
             return;
         }
         if (satisfied)
-            return;
+            return; 
         satisfied = true;
         string inputted = string.Empty + input[0] + input[1]; //Just adding two chars results in an int.
         if (words.Contains(inputted))
@@ -199,7 +212,6 @@ public class ScrabbleScrambleScript : MonoBehaviour
         tiles[5].GetComponentInChildren<TextMesh>().transform.localPosition = new Vector3(0, 0.51f, 0.125f);
         state = States.Submission;
         timerText.text = "00";
-
     }
 
     IEnumerator StageRecall()
@@ -224,7 +236,7 @@ public class ScrabbleScrambleScript : MonoBehaviour
 
     IEnumerator Timer()
     {
-        while (state != States.Submission && state != States.Solved)
+        while (!state.EqualsAny(States.Submission, States.Solved))
         {
             int timerNumber;
             switch (state)
@@ -232,16 +244,19 @@ public class ScrabbleScrambleScript : MonoBehaviour
                 case States.Deactivated: timerNumber = 30; break;
                 case States.Initial: timerNumber = 60; break;
                 case States.Activated: timerNumber = 90; break;
-                default: throw new ArgumentException();
+                default: throw new ArgumentOutOfRangeException();
             }
             if (timeElapsed > timerNumber)
             {
                 timeElapsed = Time.deltaTime;
                 if (state == States.Activated)
                 {
-                    GetComponent<KMBombModule>().HandleStrike();
-                    Debug.LogFormat("[Scrabble Scramble #{0}] Time ran out. Strike incurred.", moduleId);
-                    StartCoroutine(Clear());
+                    if (!satisfied)
+                    {
+                        GetComponent<KMBombModule>().HandleStrike();
+                        Debug.LogFormat("[Scrabble Scramble #{0}] Time ran out. Strike incurred.", moduleId);
+                        StartCoroutine(Clear());
+                    } 
                     state = States.Deactivated;
                 }
                 else
@@ -283,9 +298,7 @@ public class ScrabbleScrambleScript : MonoBehaviour
         }
         boardClear = false;
         if (goingIntoSolve)
-        {
             StartCoroutine(GoIntoSolve());
-        }
         else
         {
             activations++;
@@ -301,14 +314,14 @@ public class ScrabbleScrambleScript : MonoBehaviour
         yield return null;
     }
 
-    IEnumerator DisplayTiles(char[] input)
+    IEnumerator DisplayTiles(IEnumerable<char> input)
     {
         for (int i = 0; i < 6; i++)
         {
             Audio.PlaySoundAtTransform("tile", tiles[i].transform);
             tiles[i].transform.SetParent(tilesParent.transform);
             tiles[i].transform.localPosition = tilePositions[i];
-            tiles[i].GetComponentInChildren<TextMesh>().text = input[i].ToString();
+            tiles[i].GetComponentInChildren<TextMesh>().text = input.ElementAt(i).ToString();
             tiles[i].SetActive(true);
             yield return new WaitForSeconds(0.5f);
         }
@@ -319,7 +332,8 @@ public class ScrabbleScrambleScript : MonoBehaviour
     {
         int score = 0;
         foreach (char letter in input)
-            score += letterValues[letter - 'A'];
+            if (letter != '-')
+                score += letterValues[letter - 'A'];
         return score;
     }
 
@@ -331,44 +345,53 @@ public class ScrabbleScrambleScript : MonoBehaviour
     {
         string command = input.Trim().ToUpperInvariant();
         List<string> parameters = command.Split(new char[] { ' ' }, StringSplitOptions.RemoveEmptyEntries).ToList();
-        if (Regex.IsMatch(command, @"^SUBMIT\s+[A-Z][A-Z]$") && state == States.Activated)
+        if (Regex.IsMatch(command, @"^SUBMIT\s+[A-Z][A-Z]$"))
         {
-            int[] selects = new int[] { -1, -1 };
+            if (state != States.Activated)
+                yield return "sendtochaterror A word cannot be submitted at this time";
+            int?[] selects = new int?[] { null, null };
             for (int i = 0; i < 6; i++)
                 if (availableTiles[i] == parameters.Last()[0])
                     selects[0] = i;
             for (int i = 0; i < 6; i++)
                 if (availableTiles[i] == parameters.Last()[1] && i != selects[0])
                     selects[1] = i;
-            if (selects.Any(x => x == -1))
+            if (selects.Any(x => x == null))
             {
                 yield return "sendtochaterror Attempted to enter an impossible word.";
                 yield break;
             }
             yield return null;
             while (isAnimating) yield return null;
-            tileSelectables[selects[0]].OnInteract();
+            tileSelectables[selects[0].Value].OnInteract();
             yield return new WaitForSeconds(0.3f);
-            tileSelectables[selects[1]].OnInteract();
+            tileSelectables[selects[1].Value].OnInteract();
             yield return new WaitForSeconds(0.3f);
             submitButton.OnInteract();
+            if (satisfied)
+                yield return "awardpoints " + (evenNumberedInput ? 1 : 2);
+            evenNumberedInput = !evenNumberedInput;
         }
-        else if (Regex.IsMatch(command, @"^SUBMIT\s+[0-9]+$") && state == States.Submission)
+        else if (Regex.IsMatch(command, @"^SUBMIT\s+[0-9]+$"))
         {
-            yield return null;
-            while (isAnimating) yield return null;
-            foreach (int number in parameters.Last().Select(x => x - '0'))
+            if (state != States.Submission)
+                yield return "sendtochaterror A number cannot be submitted at this time.";
+            else
             {
-                if (number > 4 ^ showingBigs)
+                yield return null;
+                while (isAnimating) yield return null;
+                foreach (int number in parameters.Last().Select(x => x - '0'))
                 {
-                    tileSelectables[5].OnInteract();
+                    if (number > 4 != showingBigs)
+                    {
+                        tileSelectables[5].OnInteract();
+                        yield return new WaitForSeconds(0.3f);
+                    }
+                    tileSelectables[number % 5].OnInteract();
                     yield return new WaitForSeconds(0.3f);
                 }
-                tileSelectables[number % 5].OnInteract();
-                yield return new WaitForSeconds(0.3f);
+                submitButton.OnInteract();
             }
-            submitButton.OnInteract();
         }
     }
-    //We are not having an autosolver for the pseudoneedy. Fuck you exish!
 }

@@ -24,4 +24,4 @@ MonoBehaviour:
     Manual can be found at ktane.timwi.de'
   version: 1.0.0
   outputFolder: build
-  previewImage: {fileID: 0}
+  previewImage: {fileID: 2800000, guid: defade0e9eb1b3f4cb2c45791462f23d, type: 3}
