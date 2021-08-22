@@ -54,7 +54,6 @@ public class ScrabbleScrambleScript : MonoBehaviour
 
     bool showingBigs;
     int submission;
-    bool evenNumberedInput;
 
     string[] numberSets = new string[] { "01234↓", "56789↑" };
 
@@ -369,8 +368,7 @@ public class ScrabbleScrambleScript : MonoBehaviour
             yield return new WaitForSeconds(0.3f);
             submitButton.OnInteract();
             if (satisfied)
-                yield return "awardpoints " + (evenNumberedInput ? 1 : 2);
-            evenNumberedInput = !evenNumberedInput;
+                yield return "awardpoints 1";
         }
         else if (Regex.IsMatch(command, @"^SUBMIT\s+[0-9]+$"))
         {
