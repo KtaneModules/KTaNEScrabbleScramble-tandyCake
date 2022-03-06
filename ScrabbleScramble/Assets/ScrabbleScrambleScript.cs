@@ -346,7 +346,7 @@ public class ScrabbleScrambleScript : MonoBehaviour
         List<string> parameters = command.Split(new char[] { ' ' }, StringSplitOptions.RemoveEmptyEntries).ToList();
         if (Regex.IsMatch(command, @"^SUBMIT\s+[A-Z][A-Z]$"))
         {
-            if (state != States.Activated)
+            if (state != States.Activated || satisfied)
                 yield return "sendtochaterror A word cannot be submitted at this time";
             int?[] selects = new int?[] { null, null };
             for (int i = 0; i < 6; i++)
